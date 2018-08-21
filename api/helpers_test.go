@@ -12,6 +12,9 @@ import (
 
 	assertPackage "github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"net/http/httptest"
+	"net/http"
+	"strings"
 )
 
 type HelpersTestSuite struct {
@@ -57,6 +60,31 @@ func (s *HelpersTestSuite) TestReadFile() {
 	buf := new(bytes.Buffer)
 	io.Copy(buf, r)
 	s.assert.Equal(buf.String(), s.testID)
+}
+
+func (s *HelpersTestSuite) TestHttpClientCopyHeadersWhenFollowsRedirects() {
+	//Previously there was code that does it directly but
+	server := httptest.NewServer(http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "redirect") {
+			w.Write([]byte(r.Header.Get("custom-header")))
+		} else {
+			http.Redirect(w, r, "/redirect", http.StatusFound)
+		}
+	}))
+
+	client := NewHTTPClient(0, nil)
+
+	req, err := http.NewRequest("GET", server.URL, nil)
+	s.assert.NoError(err)
+	req.Header.Add("custom-header", "test value")
+
+	resp, err := client.Do(req)
+	s.assert.NoError(err)
+
+	body, err := ioutil.ReadAll(resp.Body)
+	s.assert.NoError(err)
+	s.assert.Equal("test value", string(body))
+
 }
 
 // Run test suit

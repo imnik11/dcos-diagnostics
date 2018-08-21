@@ -181,17 +181,6 @@ func NewHTTPClient(timeout time.Duration, transport http.RoundTripper) *http.Cli
 		client.Transport = transport
 	}
 
-	// go http client does not copy the headers when it follows the redirect.
-	// https://github.com/golang/go/issues/4800
-	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		for attr, val := range via[0].Header {
-			if _, ok := req.Header[attr]; !ok {
-				req.Header[attr] = val
-			}
-		}
-		return nil
-	}
-
 	return client
 }
 
