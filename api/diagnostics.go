@@ -34,6 +34,9 @@ const (
 
 	// Agents stand for collecting from discovered agent/agent_public nodes.
 	Agents = "agents"
+
+	// Local stands for collecting logs from local node.
+	Local = "local"
 )
 
 // DiagnosticsJob is the main structure for a logs collection job.
@@ -114,7 +117,7 @@ func (j *DiagnosticsJob) run(req bundleCreateRequest) (createResponse, error) {
 		return prepareCreateResponseWithErr(http.StatusServiceUnavailable, err)
 	}
 
-	if role == dcos.AgentRole || role == dcos.AgentPublicRole {
+	if !(len(req.Nodes) == 1 && req.Nodes[0] == Local) && role == dcos.AgentRole || role == dcos.AgentPublicRole {
 		return prepareCreateResponseWithErr(http.StatusBadRequest, errors.New("running diagnostics job on agent node is not implemented"))
 	}
 
@@ -761,6 +764,14 @@ func matchRequestedNodes(requestedNodes []string, masterNodes, agentNodes []dcos
 }
 
 func findRequestedNodes(requestedNodes []string, tools dcos.Tooler) ([]dcos.Node, error) {
+	if len(requestedNodes) == 1 && requestedNodes[0] == Local {
+		node, err := tools.GetNode()
+		if err != nil {
+			return nil, fmt.Errorf("could not get local node: %s", err)
+		}
+		return []dcos.Node{node}, nil
+	}
+
 	masterNodes, err := tools.GetMasterNodes()
 	if err != nil {
 		logrus.WithError(err).Errorf("Could not get master nodes")

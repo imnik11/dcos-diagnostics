@@ -236,6 +236,16 @@ func (st *fakeDCOSTools) GetAgentNodes() (nodes []dcos.Node, err error) {
 	return nodes, nil
 }
 
+func (st *fakeDCOSTools) GetNode() (dcos.Node, error) {
+	return dcos.Node{
+		Leader:  false,
+		Role:    "agent",
+		IP:      "127.0.0.2",
+		Host:    "localhost",
+		MesosID: "1",
+	}, nil
+}
+
 type HandlersTestSuit struct {
 	suite.Suite
 	assert                              *assertPackage.Assertions

@@ -256,7 +256,25 @@ func (h *handler) listAvailableLocalBundlesFilesHandler(w http.ResponseWriter, _
 // available on a different node, it will do a reverse proxy.
 func (h *handler) downloadBundleHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	node, location, ok, err := h.job.isBundleAvailable(vars["file"])
+	file := vars["file"]
+
+	bundles, err := h.job.findLocalBundle()
+	if err == nil {
+		for _, bundle := range bundles {
+			serveFile := h.cfg.FlagDiagnosticsBundleDir + "/" + file
+			if bundle == serveFile {
+				_, err = os.Stat(serveFile)
+				if err == nil {
+					w.Header().Add("Content-disposition", fmt.Sprintf("attachment; filename=%s", file))
+					http.ServeFile(w, r, serveFile)
+					return
+				}
+			}
+		}
+	}
+	log.WithError(err).Info("Not found bundle locally")
+
+	node, location, ok, err := h.job.isBundleAvailable(file)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -265,15 +283,6 @@ func (h *handler) downloadBundleHandler(w http.ResponseWriter, r *http.Request) 
 		http.NotFound(w, r)
 		return
 	}
-	// check if the file is available on localhost.
-	serveFile := h.cfg.FlagDiagnosticsBundleDir + "/" + vars["file"]
-	_, err = os.Stat(serveFile)
-	if err == nil {
-		w.Header().Add("Content-disposition", fmt.Sprintf("attachment; filename=%s", vars["file"]))
-		http.ServeFile(w, r, serveFile)
-		return
-	}
-
 	// proxy to appropriate host with a file.
 	scheme := "http"
 	if h.cfg.FlagForceTLS {

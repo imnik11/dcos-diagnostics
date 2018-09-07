@@ -107,6 +107,9 @@ type Tooler interface {
 	//// GetAgentsFromMaster will lookup agents in DC/OS cluster.
 	GetAgentNodes() ([]Node, error)
 
+	// GetNode return local node information
+	GetNode() (Node, error)
+
 	// Get timestamp
 	GetTimestamp() time.Time
 }

@@ -1,12 +1,13 @@
 package api
 
 import (
+	"time"
+
 	"github.com/dcos/dcos-diagnostics/dcos"
 	"github.com/stretchr/testify/mock"
-	"time"
 )
 
-type MockedTools struct{
+type MockedTools struct {
 	mock.Mock
 }
 
@@ -63,6 +64,11 @@ func (m *MockedTools) Get(s string, t time.Duration) ([]byte, int, error) {
 func (m *MockedTools) Post(s string, t time.Duration) ([]byte, int, error) {
 	args := m.Called(s, t)
 	return args.Get(0).([]byte), args.Int(1), args.Error(2)
+}
+
+func (m *MockedTools) GetNode() (dcos.Node, error) {
+	args := m.Called()
+	return args.Get(0).(dcos.Node), args.Error(1)
 }
 
 func (m *MockedTools) GetMasterNodes() ([]dcos.Node, error) {

@@ -3,6 +3,7 @@ package dcos
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -90,6 +91,32 @@ func (st *Tools) Post(url string, timeout time.Duration) (body []byte, httpRespo
 // GetTimestamp return time.Now()
 func (st *Tools) GetTimestamp() time.Time {
 	return time.Now()
+}
+
+// GetNode returns local node
+func (st *Tools) GetNode() (Node, error) {
+	isLeader, err := st.NodeInfo.IsLeader()
+	if err != nil {
+		return Node{}, fmt.Errorf("could not get node leadership: %s", err)
+	}
+	ip, err := st.NodeInfo.DetectIP()
+	if err != nil {
+		return Node{}, fmt.Errorf("could not get node IP: %s", err)
+	}
+	host, err := st.GetHostname()
+	if err != nil {
+		return Node{}, fmt.Errorf("could not get node hostname: %s", err)
+	}
+	role, err := st.GetNodeRole()
+	if err != nil {
+		return Node{}, fmt.Errorf("could not get node role: %s", err)
+	}
+	return Node{
+		Leader: isLeader,
+		Role:   role,
+		IP:     ip.String(),
+		Host:   host,
+	}, nil
 }
 
 // GetMasterNodes finds DC/OS masters.
