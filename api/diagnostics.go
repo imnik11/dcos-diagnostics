@@ -860,7 +860,7 @@ func (j *DiagnosticsJob) Init() error {
 	}
 
 	// trim left "/" and replace all slashes with underscores.
-	for _, fileProvider := range j.logProviders.LocalFiles {
+	for _, fileProvider := range providers.LocalFiles {
 		key := strings.Replace(strings.TrimLeft(fileProvider.Location, "/"), "/", "_", -1)
 		j.logProviders.LocalFiles[key] = fileProvider
 	}
