@@ -39,7 +39,7 @@ const (
 type DiagnosticsJob struct {
 	sync.RWMutex
 	cancelChan   chan bool
-	logProviders *LogProviders
+	logProviders logProviders
 
 	Cfg       *config.Config    `json:"-"`
 	DCOSTools DCOSHelper        `json:"-"`
@@ -781,6 +781,12 @@ type LogProviders struct {
 	LocalCommands []CommandProvider
 }
 
+type logProviders struct {
+	HTTPEndpoints []HTTPProvider
+	LocalFiles    map[string]FileProvider
+	LocalCommands map[string]CommandProvider
+}
+
 // HTTPProvider is a provider for fetching an HTTP endpoint.
 type HTTPProvider struct {
 	Port     int
@@ -793,14 +799,12 @@ type HTTPProvider struct {
 type FileProvider struct {
 	Location          string
 	Role              []string
-	sanitizedLocation string
 }
 
 // CommandProvider is a local command to execute.
 type CommandProvider struct {
 	Command        []string
 	Role           []string
-	indexedCommand string
 }
 
 func loadProviders(cfg *config.Config, DCOSTools DCOSHelper) (*LogProviders, error) {
@@ -874,9 +878,6 @@ func loadInternalProviders(cfg *config.Config, DCOSTools DCOSHelper) (internalCo
 
 func (j *DiagnosticsJob) getLogsEndpoints() (endpoints map[string]string, err error) {
 	endpoints = make(map[string]string)
-	if j.logProviders == nil {
-		return endpoints, errors.New("log providers have not been initialized")
-	}
 
 	currentRole, err := j.DCOSTools.GetNodeRole()
 	if err != nil {
@@ -914,51 +915,53 @@ func (j *DiagnosticsJob) getLogsEndpoints() (endpoints map[string]string, err er
 	}
 
 	// file endpoints
-	for _, file := range j.logProviders.LocalFiles {
+	for sanitizedLocation, file := range j.logProviders.LocalFiles {
 		if !matchRole(currentRole, file.Role) {
 			continue
 		}
-		endpoints[file.Location] = fmt.Sprintf(":%d%s/logs/files/%s", port, baseRoute, file.sanitizedLocation)
+		endpoints[file.Location] = fmt.Sprintf(":%d%s/logs/files/%s", port, baseRoute, sanitizedLocation)
 	}
 
 	// command endpoints
-	for _, c := range j.logProviders.LocalCommands {
+	for indexedCommand, c := range j.logProviders.LocalCommands {
 		if !matchRole(currentRole, c.Role) {
 			continue
 		}
-		if c.indexedCommand != "" {
-			endpoints[c.indexedCommand] = fmt.Sprintf(":%d%s/logs/cmds/%s", port, baseRoute, c.indexedCommand)
+		if indexedCommand != "" {
+			endpoints[indexedCommand] = fmt.Sprintf(":%d%s/logs/cmds/%s", port, baseRoute, indexedCommand)
 		}
 	}
 	return endpoints, nil
 }
 
 // Init will prepare diagnostics job, read config files etc.
-func (j *DiagnosticsJob) Init() (err error) {
-	j.logProviders, err = loadProviders(j.Cfg, j.DCOSTools)
+func (j *DiagnosticsJob) Init() error {
+	logProviders, err := loadProviders(j.Cfg, j.DCOSTools)
 	if err != nil {
 		return fmt.Errorf("could not init diagnostic job: %s", err)
 	}
 	// set JobProgressPercentage -1 means the job has never been executed
 	j.JobProgressPercentage = -1
 	// set filename if not set
-	for index, endpoint := range j.logProviders.HTTPEndpoints {
+	for index, endpoint := range logProviders.HTTPEndpoints {
 		if endpoint.FileName == "" {
 			j.logProviders.HTTPEndpoints[index].FileName = fmt.Sprintf("%d-%s.json", endpoint.Port, util.SanitizeString(endpoint.URI))
 		}
 	}
 
 	// trim left "/" and replace all slashes with underscores.
-	for index, fileProvider := range j.logProviders.LocalFiles {
-		j.logProviders.LocalFiles[index].sanitizedLocation = strings.Replace(strings.TrimLeft(fileProvider.Location, "/"), "/", "_", -1)
+	for _, fileProvider := range j.logProviders.LocalFiles {
+		key := strings.Replace(strings.TrimLeft(fileProvider.Location, "/"), "/", "_", -1)
+		j.logProviders.LocalFiles[key] = fileProvider
 	}
 
 	// update command with index.
-	for index, commandProvider := range j.logProviders.LocalCommands {
+	for index, commandProvider := range logProviders.LocalCommands {
 		if len(commandProvider.Command) > 0 {
 			cmdWithArgs := strings.Join(commandProvider.Command, "_")
 			trimmedCmdWithArgs := strings.Replace(cmdWithArgs, "/", "", -1)
-			j.logProviders.LocalCommands[index].indexedCommand = fmt.Sprintf("%s-%d.output", trimmedCmdWithArgs, index)
+			key := fmt.Sprintf("%s-%d.output", trimmedCmdWithArgs, index)
+			j.logProviders.LocalCommands[key] = commandProvider
 		}
 	}
 	return nil
@@ -1002,45 +1005,43 @@ func (j *DiagnosticsJob) dispatchLogs(ctx context.Context, provider, entity stri
 
 	if provider == "files" {
 		logrus.Debugf("dispatching a file %s", entity)
-		for _, fileProvider := range j.logProviders.LocalFiles {
-			if fileProvider.sanitizedLocation == entity {
-				canExecute, err := roleMatched(fileProvider.Role, j.DCOSTools)
-				if err != nil {
-					return r, err
-				}
-				if !canExecute {
-					return r, errors.New("Not allowed to read a file")
-				}
-				logrus.Debugf("Found a file %s", fileProvider.Location)
-				return readFile(fileProvider.Location)
-			}
+		fileProvider, ok := j.logProviders.LocalFiles[entity]
+		if !ok {
+			return r, errors.New("Not found " + entity)
 		}
-		return r, errors.New("Not found " + entity)
+		canExecute, err := roleMatched(fileProvider.Role, j.DCOSTools)
+		if err != nil {
+			return r, err
+		}
+		if !canExecute {
+			return r, errors.New("Not allowed to read a file")
+		}
+		logrus.Debugf("Found a file %s", fileProvider.Location)
+		return readFile(fileProvider.Location)
 	}
 	if provider == "cmds" {
 		logrus.Debugf("dispatching a command %s", entity)
-		for _, cmdProvider := range j.logProviders.LocalCommands {
-			if entity == cmdProvider.indexedCommand {
-				canExecute, err := roleMatched(cmdProvider.Role, j.DCOSTools)
-				if err != nil {
-					return r, err
-				}
-				if !canExecute {
-					return r, errors.New("Not allowed to execute a command")
-				}
-				args := []string{}
-				if len(cmdProvider.Command) > 1 {
-					args = cmdProvider.Command[1:]
-				}
-
-				ce, err := exec.Run(ctx, cmdProvider.Command[0], args)
-				if err != nil {
-					return nil, err
-				}
-				return &execCloser{ce}, nil
-			}
+		cmdProvider, ok := j.logProviders.LocalCommands[entity]
+		if !ok {
+			return r, errors.New("Not found " + entity)
 		}
-		return r, errors.New("Not found " + entity)
+		canExecute, err := roleMatched(cmdProvider.Role, j.DCOSTools)
+		if err != nil {
+			return r, err
+		}
+		if !canExecute {
+			return r, errors.New("Not allowed to execute a command")
+		}
+		var args []string
+		if len(cmdProvider.Command) > 1 {
+			args = cmdProvider.Command[1:]
+		}
+
+		ce, err := exec.Run(ctx, cmdProvider.Command[0], args)
+		if err != nil {
+			return nil, err
+		}
+		return &execCloser{ce}, nil
 	}
 	return r, errors.New("Unknown provider " + provider)
 }
