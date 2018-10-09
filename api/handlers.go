@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dcos/dcos-diagnostics/selftest"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
@@ -443,7 +445,7 @@ func getUnitLogHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func selfTestHandler(w http.ResponseWriter, r *http.Request) {
-	if err := json.NewEncoder(w).Encode(runSelfTest()); err != nil {
+	if err := json.NewEncoder(w).Encode(selftest.Run()); err != nil {
 		log.Errorf("Failed to encode responses to json: %s", err)
 	}
 }
