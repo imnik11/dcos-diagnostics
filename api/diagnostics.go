@@ -293,7 +293,7 @@ func (j *DiagnosticsJob) collectDataFromNodes(ctx context.Context, nodes []dcos.
 	fetchStatusUpdate := make(chan fetcher.StatusUpdate)
 	fetchResponse := make(chan fetcher.BulkResponse)
 
-	numberOfWorkers := 1 //TODO(janisz): make number of workers configurable
+	numberOfWorkers := 10
 	for i := 0; i < numberOfWorkers; i++ {
 		f, err := fetcher.New(j.Cfg.FlagDiagnosticsBundleDir, j.client, fetchReq, fetchStatusUpdate, fetchResponse)
 		if err != nil {
@@ -304,7 +304,7 @@ func (j *DiagnosticsJob) collectDataFromNodes(ctx context.Context, nodes []dcos.
 
 	j.waitForStatusUpdates(ctx, fetchStatusUpdate, len(fetchRequests), summaryReport, summaryErrorsReport)
 
-	zips := gatherAllResults(fetchResponse)
+	zips := gatherAllResults(numberOfWorkers, fetchResponse)
 
 	if ctx.Err() != nil {
 		j.logError(ctx.Err(), "job cancelled", summaryErrorsReport)
@@ -317,10 +317,9 @@ func (j *DiagnosticsJob) collectDataFromNodes(ctx context.Context, nodes []dcos.
 	return zips, nil
 }
 
-func gatherAllResults(fetchResponse chan fetcher.BulkResponse) []string {
-	//TODO(janisz): make number of workers configurable
-	zips := make([]string, 0, 1)
-	for i := 0; i < 1; i++ {
+func gatherAllResults(numberOfWorkers int, fetchResponse chan fetcher.BulkResponse) []string {
+	zips := make([]string, 0, numberOfWorkers)
+	for i := 0; i < numberOfWorkers; i++ {
 		result := <-fetchResponse
 		zips = append(zips, result.ZipFilePath)
 	}
