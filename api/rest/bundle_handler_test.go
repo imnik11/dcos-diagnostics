@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dcos/dcos-diagnostics/api/rest/client"
+
 	"github.com/dcos/dcos-diagnostics/collector"
 
 	"github.com/gorilla/mux"
@@ -23,7 +25,7 @@ import (
 )
 
 const (
-	bundleEndpoint     = bundlesEndpoint + "/{id}"
+	bundleEndpoint     = client.BundlesEndpoint + "/{id}"
 	bundleFileEndpoint = bundleEndpoint + "/file"
 )
 
@@ -31,7 +33,7 @@ func TestIfReturns507ForNotExistingDir(t *testing.T) {
 	t.Parallel()
 	bh := NewBundleHandler("not existing dir", nil, time.Nanosecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint, nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint, nil)
 	require.NoError(t, err)
 
 	handler := http.HandlerFunc(bh.List)
@@ -53,7 +55,7 @@ func TestIfReturnsEmptyListWhenDirIsEmpty(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint, nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint, nil)
 	require.NoError(t, err)
 
 	handler := http.HandlerFunc(bh.List)
@@ -77,7 +79,7 @@ func TestIfReturnsEmptyListWhenDirIsEmptyContainsNoDirs(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint, nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint, nil)
 	require.NoError(t, err)
 
 	handler := http.HandlerFunc(bh.List)
@@ -103,7 +105,7 @@ func TestIfDirsAsBundlesIdsWithStatusUnknown(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint, nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint, nil)
 	require.NoError(t, err)
 
 	handler := http.HandlerFunc(bh.List)
@@ -153,7 +155,7 @@ func TestIfListShowsStatusWithoutAFile(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint, nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint, nil)
 	require.NoError(t, err)
 
 	handler := http.HandlerFunc(bh.List)
@@ -190,7 +192,7 @@ func TestIfShowsStatusWithoutAFileButStatusDoneShouldChangeStatusToUnknown(t *te
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint, nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint, nil)
 	require.NoError(t, err)
 
 	handler := http.HandlerFunc(bh.List)
@@ -230,7 +232,7 @@ func TestIfShowsStatusWithFileAndUpdatesFileSize(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint, nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint, nil)
 	require.NoError(t, err)
 
 	handler := http.HandlerFunc(bh.List)
@@ -273,7 +275,7 @@ func TestIfGetShowsStatusWithoutAFileWhenBundleIsDeleted(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle", nil)
 	require.NoError(t, err)
 
 	router := mux.NewRouter()
@@ -310,7 +312,7 @@ func TestIfGetShowsStatusWithoutAFileWhenBundleIsDone(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle", nil)
 	require.NoError(t, err)
 
 	router := mux.NewRouter()
@@ -341,7 +343,7 @@ func TestIfGetReturns500WhenBundleStateIsNotJson(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle-state-not-json", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle-state-not-json", nil)
 	router := mux.NewRouter()
 	router.HandleFunc(bundleEndpoint, bh.Get)
 	rr := httptest.NewRecorder()
@@ -367,7 +369,7 @@ func TestIfDeleteReturns404WhenNoBundleFound(t *testing.T) {
 
 	bh := NewBundleHandler("", nil, time.Nanosecond)
 
-	req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/not-existing-bundle", nil)
+	req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/not-existing-bundle", nil)
 	require.NoError(t, err)
 
 	// Need to Create a router that we can pass the request through so that the vars will be added to the context
@@ -392,7 +394,7 @@ func TestIfDeleteReturns500WhenNoBundleStateFound(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/not-existing-bundle-state", nil)
+	req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/not-existing-bundle-state", nil)
 	require.NoError(t, err)
 
 	// Need to Create a router that we can pass the request through so that the vars will be added to the context
@@ -423,7 +425,7 @@ func TestIfDeleteReturns500WhenBundleStateIsNotJson(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/bundle-state-not-json", nil)
+	req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/bundle-state-not-json", nil)
 	require.NoError(t, err)
 
 	// Need to Create a router that we can pass the request through so that the vars will be added to the context
@@ -466,7 +468,7 @@ func TestIfDeleteReturns304WhenBundleWasDeletedBefore(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/deleted-bundle", nil)
+	req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/deleted-bundle", nil)
 	require.NoError(t, err)
 
 	// Need to Create a router that we can pass the request through so that the vars will be added to the context
@@ -497,7 +499,7 @@ func TestIfDeleteReturns500WhenBundleFileIsMissing(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/missing-data-file", nil)
+	req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/missing-data-file", nil)
 	require.NoError(t, err)
 
 	// Need to Create a router that we can pass the request through so that the vars will be added to the context
@@ -535,7 +537,7 @@ func TestIfDeleteReturns200WhenBundleWasDeleted(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/bundle-0", nil)
+	req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/bundle-0", nil)
 	require.NoError(t, err)
 
 	// Need to Create a router that we can pass the request through so that the vars will be added to the context
@@ -568,7 +570,7 @@ func TestIfGetFileReturnsBundle(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle", nil)
 	require.NoError(t, err)
 
 	router := mux.NewRouter()
@@ -590,7 +592,7 @@ func TestIfGetFileReturnsErrorWhenBundleDoesNotExists(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle", nil)
 	require.NoError(t, err)
 
 	router := mux.NewRouter()
@@ -624,7 +626,7 @@ func TestIfCreateReturns409WhenBundleWithGivenIdAlreadyExists(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodPut, bundlesEndpoint+"/bundle-0", nil)
+	req, err := http.NewRequest(http.MethodPut, client.BundlesEndpoint+"/bundle-0", nil)
 	require.NoError(t, err)
 
 	// Need to Create a router that we can pass the request through so that the vars will be added to the context
@@ -648,7 +650,7 @@ func TestIfCreateReturns507WhenCouldNotCreateWorkDir(t *testing.T) {
 
 	bh := NewBundleHandler(workdir, nil, time.Millisecond)
 
-	req, err := http.NewRequest(http.MethodPut, bundlesEndpoint+"/bundle-0", nil)
+	req, err := http.NewRequest(http.MethodPut, client.BundlesEndpoint+"/bundle-0", nil)
 	require.NoError(t, err)
 
 	// Need to Create a router that we can pass the request through so that the vars will be added to the context
@@ -681,7 +683,7 @@ func TestIfE2E_(t *testing.T) {
 	bh.clock = &MockClock{now: now}
 
 	router := mux.NewRouter()
-	router.HandleFunc(bundlesEndpoint, bh.List).Methods(http.MethodGet)
+	router.HandleFunc(client.BundlesEndpoint, bh.List).Methods(http.MethodGet)
 	router.HandleFunc(bundleEndpoint, bh.Create).Methods(http.MethodPut)
 	router.HandleFunc(bundleEndpoint, bh.Get).Methods(http.MethodGet)
 	router.HandleFunc(bundleEndpoint, bh.Delete).Methods(http.MethodDelete)
@@ -690,40 +692,40 @@ func TestIfE2E_(t *testing.T) {
 	testServer := httptest.NewServer(router)
 	defer testServer.Close()
 
-	client := NewDiagnosticsClient(testServer.Client())
+	c := client.NewDiagnosticsClient(testServer.Client())
 
 	t.Run("get status of not existing bundle-0", func(t *testing.T) {
-		bundle, err := client.Status(context.TODO(), testServer.URL, "bundle-0")
+		bundle, err := c.Status(context.TODO(), testServer.URL, "bundle-0")
 		assert.Nil(t, bundle)
-		assert.IsType(t, &DiagnosticsBundleNotFoundError{}, err)
+		assert.IsType(t, &client.DiagnosticsBundleNotFoundError{}, err)
 	})
 
 	t.Run("create bundle-0", func(t *testing.T) {
-		bundle, err := client.CreateBundle(context.TODO(), testServer.URL, "bundle-0")
+		bundle, err := c.CreateBundle(context.TODO(), testServer.URL, "bundle-0")
 		require.NoError(t, err)
 
-		assert.Equal(t, &Bundle{
+		assert.Equal(t, &client.Bundle{
 			ID:      "bundle-0",
-			Status:  Started,
+			Status:  client.Started,
 			Started: now.Add(time.Hour),
 		}, bundle)
 	})
 
 	t.Run("get bundle-0 status", func(t *testing.T) {
 		for { // busy wait for bundle
-			bundle, err := client.Status(context.TODO(), testServer.URL, "bundle-0")
+			bundle, err := c.Status(context.TODO(), testServer.URL, "bundle-0")
 			require.NoError(t, err)
-			if bundle.Status == Done {
+			if bundle.Status == client.Done {
 				break
 			}
 		}
 
-		bundle, err := client.Status(context.TODO(), testServer.URL, "bundle-0")
+		bundle, err := c.Status(context.TODO(), testServer.URL, "bundle-0")
 		require.NoError(t, err)
 
-		assert.Equal(t, &Bundle{
+		assert.Equal(t, &client.Bundle{
 			ID:      "bundle-0",
-			Status:  Done,
+			Status:  client.Done,
 			Started: now.Add(time.Hour),
 			Stopped: now.Add(2 * time.Hour),
 			Size:    494,
@@ -738,7 +740,7 @@ func TestIfE2E_(t *testing.T) {
 		f.Close()
 		defer os.Remove(f.Name())
 
-		err = client.GetFile(context.TODO(), testServer.URL, "bundle-0", f.Name())
+		err = c.GetFile(context.TODO(), testServer.URL, "bundle-0", f.Name())
 		require.NoError(t, err)
 
 		reader, err := zip.OpenReader(f.Name())
@@ -775,7 +777,7 @@ func TestIfE2E_(t *testing.T) {
 
 	t.Run("delete bundle-0", func(t *testing.T) {
 
-		req, err := http.NewRequest(http.MethodDelete, testServer.URL+bundlesEndpoint+"/bundle-0", nil)
+		req, err := http.NewRequest(http.MethodDelete, testServer.URL+client.BundlesEndpoint+"/bundle-0", nil)
 		require.NoError(t, err)
 
 		rr, err := http.DefaultClient.Do(req)
@@ -786,9 +788,9 @@ func TestIfE2E_(t *testing.T) {
 		body, err := ioutil.ReadAll(rr.Body)
 		require.NoError(t, err)
 
-		assert.JSONEq(t, string(jsonMarshal(Bundle{
+		assert.JSONEq(t, string(jsonMarshal(client.Bundle{
 			ID:      "bundle-0",
-			Status:  Deleted,
+			Status:  client.Deleted,
 			Started: now.Add(time.Hour),
 			Stopped: now.Add(2 * time.Hour),
 			Size:    494,
@@ -797,16 +799,16 @@ func TestIfE2E_(t *testing.T) {
 	})
 
 	t.Run("list bundles", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, bundlesEndpoint, nil)
+		req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint, nil)
 		require.NoError(t, err)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.JSONEq(t, string(jsonMarshal([]Bundle{{
+		assert.JSONEq(t, string(jsonMarshal([]client.Bundle{{
 			ID:      "bundle-0",
-			Status:  Deleted,
+			Status:  client.Deleted,
 			Started: now.Add(time.Hour),
 			Stopped: now.Add(2 * time.Hour),
 			Size:    494,

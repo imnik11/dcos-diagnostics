@@ -17,6 +17,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dcos/dcos-diagnostics/api/rest/client"
+	m "github.com/dcos/dcos-diagnostics/api/rest/client/mock"
+
 	"github.com/dcos/dcos-diagnostics/dcos"
 
 	"github.com/gorilla/mux"
@@ -41,13 +44,13 @@ func TestRemoteBundleCreationConflictErrorWhenBundleExists(t *testing.T) {
 
 	tools := new(MockedTools)
 
-	client := new(TestifyMockClient)
+	c := new(m.TestifyClient)
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -57,7 +60,7 @@ func TestRemoteBundleCreationConflictErrorWhenBundleExists(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleEndpoint, bh.Create).Methods(http.MethodPut)
 
-	req, err := http.NewRequest(http.MethodPut, bundlesEndpoint+"/"+id, nil)
+	req, err := http.NewRequest(http.MethodPut, client.BundlesEndpoint+"/"+id, nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -94,16 +97,16 @@ func TestDeleteBundle(t *testing.T) {
 	ctx := context.TODO()
 
 	id := "bundle-0"
-	client := new(TestifyMockClient)
-	client.On("Delete", ctx, "http://192.0.2.2", id).Return(&DiagnosticsBundleNotFoundError{id: id})
-	client.On("Delete", ctx, "http://192.0.2.4", id).Return(nil)
-	client.On("Delete", ctx, "http://192.0.2.5", id).Return(&DiagnosticsBundleNotFoundError{id: id})
+	c := new(m.TestifyClient)
+	c.On("Delete", ctx, "http://192.0.2.2", id).Return(&client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Delete", ctx, "http://192.0.2.4", id).Return(nil)
+	c.On("Delete", ctx, "http://192.0.2.5", id).Return(&client.DiagnosticsBundleNotFoundError{ID: id})
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -113,7 +116,7 @@ func TestDeleteBundle(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleEndpoint, bh.Delete).Methods(http.MethodDelete)
 
-	req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/"+id, nil)
+	req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/"+id, nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -150,16 +153,16 @@ func TestDeleteAlreadyDeletedBundle(t *testing.T) {
 	ctx := context.TODO()
 
 	id := "bundle-0"
-	client := new(TestifyMockClient)
-	client.On("Delete", ctx, "http://192.0.2.2", id).Return(&DiagnosticsBundleNotFoundError{id: id})
-	client.On("Delete", ctx, "http://192.0.2.4", id).Return(&DiagnosticsBundleNotCompletedError{id: id})
-	client.On("Delete", ctx, "http://192.0.2.5", id).Return(&DiagnosticsBundleNotFoundError{id: id})
+	c := new(m.TestifyClient)
+	c.On("Delete", ctx, "http://192.0.2.2", id).Return(&client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Delete", ctx, "http://192.0.2.4", id).Return(&client.DiagnosticsBundleNotCompletedError{ID: id})
+	c.On("Delete", ctx, "http://192.0.2.5", id).Return(&client.DiagnosticsBundleNotFoundError{ID: id})
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -169,7 +172,7 @@ func TestDeleteAlreadyDeletedBundle(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleEndpoint, bh.Delete).Methods(http.MethodDelete)
 
-	req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/"+id, nil)
+	req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/"+id, nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -206,16 +209,16 @@ func TestDeleteBundleThatIsntFound(t *testing.T) {
 	ctx := context.TODO()
 
 	id := "bundle-0"
-	client := new(TestifyMockClient)
-	client.On("Delete", ctx, "http://192.0.2.2", id).Return(&DiagnosticsBundleNotFoundError{id: id})
-	client.On("Delete", ctx, "http://192.0.2.4", id).Return(&DiagnosticsBundleNotFoundError{id: id})
-	client.On("Delete", ctx, "http://192.0.2.5", id).Return(&DiagnosticsBundleNotFoundError{id: id})
+	c := new(m.TestifyClient)
+	c.On("Delete", ctx, "http://192.0.2.2", id).Return(&client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Delete", ctx, "http://192.0.2.4", id).Return(&client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Delete", ctx, "http://192.0.2.5", id).Return(&client.DiagnosticsBundleNotFoundError{ID: id})
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -225,7 +228,7 @@ func TestDeleteBundleThatIsntFound(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleEndpoint, bh.Delete).Methods(http.MethodDelete)
 
-	req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/"+id, nil)
+	req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/"+id, nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -262,16 +265,16 @@ func TestDeleteUnreadableBundle(t *testing.T) {
 	ctx := context.TODO()
 
 	id := "bundle-0"
-	client := new(TestifyMockClient)
-	client.On("Delete", ctx, "http://192.0.2.2", id).Return(&DiagnosticsBundleNotFoundError{id: id})
-	client.On("Delete", ctx, "http://192.0.2.4", id).Return(&DiagnosticsBundleUnreadableError{id: id})
-	client.On("Delete", ctx, "http://192.0.2.5", id).Return(&DiagnosticsBundleNotFoundError{id: id})
+	c := new(m.TestifyClient)
+	c.On("Delete", ctx, "http://192.0.2.2", id).Return(&client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Delete", ctx, "http://192.0.2.4", id).Return(&client.DiagnosticsBundleUnreadableError{ID: id})
+	c.On("Delete", ctx, "http://192.0.2.5", id).Return(&client.DiagnosticsBundleNotFoundError{ID: id})
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -281,7 +284,7 @@ func TestDeleteUnreadableBundle(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleEndpoint, bh.Delete).Methods(http.MethodDelete)
 
-	req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/"+id, nil)
+	req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/"+id, nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -317,21 +320,21 @@ func TestStatusForBundle(t *testing.T) {
 
 	ctx := context.TODO()
 
-	client := new(TestifyMockClient)
-	client.On("Status", ctx, "http://192.0.2.2", "bundle-0").Return(nil, fmt.Errorf("asdf"))
-	client.On("Status", ctx, "http://192.0.2.4", "bundle-0").Return(&Bundle{
+	c := new(m.TestifyClient)
+	c.On("Status", ctx, "http://192.0.2.2", "bundle-0").Return(nil, fmt.Errorf("asdf"))
+	c.On("Status", ctx, "http://192.0.2.4", "bundle-0").Return(&client.Bundle{
 		ID:      "bundle-0",
-		Status:  Done,
+		Status:  client.Done,
 		Started: now,
 		Stopped: now.Add(1 * time.Hour),
 	}, nil)
-	client.On("Status", ctx, "http://192.0.2.5", "bundle-0").Return(nil, fmt.Errorf("asdf"))
+	c.On("Status", ctx, "http://192.0.2.5", "bundle-0").Return(nil, fmt.Errorf("asdf"))
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -341,16 +344,16 @@ func TestStatusForBundle(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleEndpoint, bh.Status).Methods(http.MethodGet)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle-0", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle-0", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.JSONEq(t, string(jsonMarshal(Bundle{
+	assert.JSONEq(t, string(jsonMarshal(client.Bundle{
 		ID:      "bundle-0",
-		Status:  Done,
+		Status:  client.Done,
 		Started: now,
 		Stopped: now.Add(time.Hour),
 	})), rr.Body.String())
@@ -384,16 +387,16 @@ func TestStatusOnMissingBundle(t *testing.T) {
 	ctx := context.TODO()
 
 	id := "bundle-0"
-	client := new(TestifyMockClient)
-	client.On("Status", ctx, "http://192.0.2.2", id).Return(nil, &DiagnosticsBundleNotFoundError{id: id})
-	client.On("Status", ctx, "http://192.0.2.4", id).Return(nil, &DiagnosticsBundleNotFoundError{id: id})
-	client.On("Status", ctx, "http://192.0.2.5", id).Return(nil, &DiagnosticsBundleNotFoundError{id: id})
+	c := new(m.TestifyClient)
+	c.On("Status", ctx, "http://192.0.2.2", id).Return(nil, &client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Status", ctx, "http://192.0.2.4", id).Return(nil, &client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Status", ctx, "http://192.0.2.5", id).Return(nil, &client.DiagnosticsBundleNotFoundError{ID: id})
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -403,7 +406,7 @@ func TestStatusOnMissingBundle(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleEndpoint, bh.Status).Methods(http.MethodGet)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle-0", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle-0", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -432,14 +435,14 @@ func TestStatusForUnreadableBundle(t *testing.T) {
 	ctx := context.TODO()
 
 	id := "bundle-0"
-	client := new(TestifyMockClient)
-	client.On("Status", ctx, "http://192.0.2.2", id).Return(nil, &DiagnosticsBundleUnreadableError{id: id})
+	c := new(m.TestifyClient)
+	c.On("Status", ctx, "http://192.0.2.2", id).Return(nil, &client.DiagnosticsBundleUnreadableError{ID: id})
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -449,7 +452,7 @@ func TestStatusForUnreadableBundle(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleEndpoint, bh.Status).Methods(http.MethodGet)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle-0", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle-0", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -492,13 +495,13 @@ func TestDownloadBundle(t *testing.T) {
 	ctx := context.TODO()
 
 	id := "bundle-0"
-	client := new(TestifyMockClient)
-	client.On("Status", ctx, "http://192.0.2.2", id).Return(nil, &DiagnosticsBundleNotFoundError{id: id})
-	client.On("Status", ctx, "http://192.0.2.4", id).Return(nil, &DiagnosticsBundleNotFoundError{id: id})
-	client.On("Status", ctx, "http://192.0.2.5", id).Return(&Bundle{
+	c := new(m.TestifyClient)
+	c.On("Status", ctx, "http://192.0.2.2", id).Return(nil, &client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Status", ctx, "http://192.0.2.4", id).Return(nil, &client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Status", ctx, "http://192.0.2.5", id).Return(&client.Bundle{
 		ID: "bundle-0",
 	}, nil)
-	client.On("GetFile", ctx, "http://192.0.2.5", id, mock.AnythingOfType("string")).Return(func(ctx context.Context, url string, id string, tempZipFile string) error {
+	c.On("GetFile", ctx, "http://192.0.2.5", id, mock.AnythingOfType("string")).Return(func(ctx context.Context, url string, id string, tempZipFile string) error {
 		// copy the testdata zip to the location Client is expected to put the downloaded zip
 		f, err := os.Create(tempZipFile)
 		require.NoError(t, err)
@@ -510,7 +513,7 @@ func TestDownloadBundle(t *testing.T) {
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -520,7 +523,7 @@ func TestDownloadBundle(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleFileEndpoint, bh.Download).Methods(http.MethodGet)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/"+id+"/file", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/"+id+"/file", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -559,16 +562,16 @@ func TestDownloadMissingBundle(t *testing.T) {
 	ctx := context.TODO()
 
 	id := "bundle-0"
-	client := new(TestifyMockClient)
-	client.On("Status", ctx, "http://192.0.2.2", id).Return(nil, &DiagnosticsBundleNotFoundError{id: id})
-	client.On("Status", ctx, "http://192.0.2.4", id).Return(nil, &DiagnosticsBundleNotFoundError{id: id})
-	client.On("Status", ctx, "http://192.0.2.5", id).Return(nil, &DiagnosticsBundleNotFoundError{id: id})
+	c := new(m.TestifyClient)
+	c.On("Status", ctx, "http://192.0.2.2", id).Return(nil, &client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Status", ctx, "http://192.0.2.4", id).Return(nil, &client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Status", ctx, "http://192.0.2.5", id).Return(nil, &client.DiagnosticsBundleNotFoundError{ID: id})
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -578,7 +581,7 @@ func TestDownloadMissingBundle(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleFileEndpoint, bh.Download).Methods(http.MethodGet)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/"+id+"/file", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/"+id+"/file", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -615,16 +618,16 @@ func TestDownloadUnreadableBundle(t *testing.T) {
 	ctx := context.TODO()
 
 	id := "bundle-0"
-	client := new(TestifyMockClient)
-	client.On("Status", ctx, "http://192.0.2.2", id).Return(nil, &DiagnosticsBundleNotFoundError{id: id})
-	client.On("Status", ctx, "http://192.0.2.4", id).Return(nil, &DiagnosticsBundleNotFoundError{id: id})
-	client.On("Status", ctx, "http://192.0.2.5", id).Return(nil, &DiagnosticsBundleUnreadableError{id: id})
+	c := new(m.TestifyClient)
+	c.On("Status", ctx, "http://192.0.2.2", id).Return(nil, &client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Status", ctx, "http://192.0.2.4", id).Return(nil, &client.DiagnosticsBundleNotFoundError{ID: id})
+	c.On("Status", ctx, "http://192.0.2.5", id).Return(nil, &client.DiagnosticsBundleUnreadableError{ID: id})
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -634,7 +637,7 @@ func TestDownloadUnreadableBundle(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc(bundleFileEndpoint, bh.Download).Methods(http.MethodGet)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/"+id+"/file", nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/"+id+"/file", nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -670,7 +673,7 @@ func TestListWithBundlesOnMultipleMasters(t *testing.T) {
 
 	ctx := context.TODO()
 
-	expectedBundles := []*Bundle{
+	expectedBundles := []*client.Bundle{
 		{
 			ID: "bundle-0",
 		},
@@ -682,16 +685,16 @@ func TestListWithBundlesOnMultipleMasters(t *testing.T) {
 		},
 	}
 
-	client := new(TestifyMockClient)
-	client.On("List", ctx, "http://192.0.2.2").Return([]*Bundle{expectedBundles[0]}, nil)
-	client.On("List", ctx, "http://192.0.2.4").Return([]*Bundle{expectedBundles[1]}, nil)
-	client.On("List", ctx, "http://192.0.2.5").Return([]*Bundle{expectedBundles[2]}, nil)
+	c := new(m.TestifyClient)
+	c.On("List", ctx, "http://192.0.2.2").Return([]*client.Bundle{expectedBundles[0]}, nil)
+	c.On("List", ctx, "http://192.0.2.4").Return([]*client.Bundle{expectedBundles[1]}, nil)
+	c.On("List", ctx, "http://192.0.2.5").Return([]*client.Bundle{expectedBundles[2]}, nil)
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -699,9 +702,9 @@ func TestListWithBundlesOnMultipleMasters(t *testing.T) {
 	}
 
 	router := mux.NewRouter()
-	router.HandleFunc(bundlesEndpoint, bh.List).Methods(http.MethodGet)
+	router.HandleFunc(client.BundlesEndpoint, bh.List).Methods(http.MethodGet)
 
-	req, err := http.NewRequest(http.MethodGet, bundlesEndpoint, nil)
+	req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint, nil)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -747,27 +750,27 @@ func TestRemoteBundleCreation(t *testing.T) {
 
 	ctx := context.TODO()
 
-	client := new(TestifyMockClient)
-	client.On("Status", ctx, "http://192.0.2.2", "bundle-0").Return(&Bundle{
+	c := new(m.TestifyClient)
+	c.On("Status", ctx, "http://192.0.2.2", "bundle-0").Return(&client.Bundle{
 		ID:      "bundle-0",
 		Started: now.Add(time.Hour),
 		Stopped: now.Add(2 * time.Hour),
-		Status:  Done,
+		Status:  client.Done,
 	}, nil)
-	client.On("GetFile", ctx, "http://192.0.2.2", "bundle-0", mock.AnythingOfType("string")).Return(func(_ context.Context, _ string, _ string, tempZipFile string) error {
+	c.On("GetFile", ctx, "http://192.0.2.2", "bundle-0", mock.AnythingOfType("string")).Return(func(_ context.Context, _ string, _ string, tempZipFile string) error {
 		// copy the testdata zip to the location Client is expected to put the downloaded zip
 		f, err := os.Create(tempZipFile)
 		require.NoError(t, err)
 		io.Copy(f, bytes.NewBuffer(expectedBytes))
 		return nil
 	})
-	client.On("Delete", ctx, "http://192.0.2.2", "bundle-0").Return(nil)
+	c.On("Delete", ctx, "http://192.0.2.2", "bundle-0").Return(nil)
 
 	coord := new(mockCoordinator)
 	bh := ClusterBundleHandler{
 		workDir:    workdir,
 		coord:      coord,
-		client:     client,
+		client:     c,
 		tools:      tools,
 		timeout:    time.Second,
 		clock:      &MockClock{now: now},
@@ -781,16 +784,16 @@ func TestRemoteBundleCreation(t *testing.T) {
 	router.HandleFunc(bundleFileEndpoint, bh.Download).Methods(http.MethodGet)
 
 	t.Run("send creation request", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodPut, bundlesEndpoint+"/bundle-0", nil)
+		req, err := http.NewRequest(http.MethodPut, client.BundlesEndpoint+"/bundle-0", nil)
 		require.NoError(t, err)
 
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.JSONEq(t, string(jsonMarshal(Bundle{
+		assert.JSONEq(t, string(jsonMarshal(client.Bundle{
 			ID:      "bundle-0",
-			Status:  Started,
+			Status:  client.Started,
 			Started: now.Add(time.Hour),
 		})), rr.Body.String())
 
@@ -803,13 +806,13 @@ func TestRemoteBundleCreation(t *testing.T) {
 		retryLimit := 100
 		for { // busy wait for bundle
 			time.Sleep(time.Millisecond)
-			req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle-0", nil)
+			req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle-0", nil)
 			require.NoError(t, err)
 
 			rr = httptest.NewRecorder()
 			router.ServeHTTP(rr, req)
 
-			if strings.Contains(rr.Body.String(), Done.String()) {
+			if strings.Contains(rr.Body.String(), client.Done.String()) {
 				break
 			}
 			tries++
@@ -817,16 +820,16 @@ func TestRemoteBundleCreation(t *testing.T) {
 			require.True(t, tries < retryLimit, "status wait loop exceeded retry limit")
 		}
 
-		req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle-0", nil)
+		req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle-0", nil)
 		require.NoError(t, err)
 
 		rr = httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.JSONEq(t, string(jsonMarshal(Bundle{
+		assert.JSONEq(t, string(jsonMarshal(client.Bundle{
 			ID:      "bundle-0",
-			Status:  Done,
+			Status:  client.Done,
 			Started: now.Add(time.Hour),
 			Stopped: now.Add(2 * time.Hour),
 			Errors:  []string{},
@@ -834,7 +837,7 @@ func TestRemoteBundleCreation(t *testing.T) {
 	})
 
 	t.Run("get bundle-0 file and validate it", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, bundlesEndpoint+"/bundle-0/file", nil)
+		req, err := http.NewRequest(http.MethodGet, client.BundlesEndpoint+"/bundle-0/file", nil)
 		require.NoError(t, err)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
@@ -862,7 +865,7 @@ func TestRemoteBundleCreation(t *testing.T) {
 	})
 
 	t.Run("delete bundle", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodDelete, bundlesEndpoint+"/bundle-0", nil)
+		req, err := http.NewRequest(http.MethodDelete, client.BundlesEndpoint+"/bundle-0", nil)
 		require.NoError(t, err)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)

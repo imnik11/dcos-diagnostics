@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dcos/dcos-diagnostics/api/rest/client"
+
 	"github.com/dcos/dcos-diagnostics/collector"
 
 	"github.com/gorilla/mux"
@@ -32,15 +34,6 @@ const (
 	filePerm = 0600
 	dirPerm  = 0700
 )
-
-type Bundle struct {
-	ID      string    `json:"id,omitempty"`
-	Size    int64     `json:"size,omitempty"` // length in bytes for regular files; 0 when Canceled or Deleted
-	Status  Status    `json:"status"`
-	Started time.Time `json:"started_at,omitempty"`
-	Stopped time.Time `json:"stopped_at,omitempty"`
-	Errors  []string  `json:"errors,omitempty"`
-}
 
 type ErrorResponse struct {
 	Code  int    `json:"code"`
@@ -97,10 +90,10 @@ func (h BundleHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	stateFilePath := filepath.Join(h.workDir, id, stateFileName)
 
-	bundle := Bundle{
+	bundle := client.Bundle{
 		ID:      id,
 		Started: h.clock.Now(),
-		Status:  Started,
+		Status:  client.Started,
 	}
 
 	bundleStatus := jsonMarshal(bundle)
@@ -126,7 +119,7 @@ func (h BundleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			break
 		case bundle.Errors = <-done:
-			bundle.Status = Done
+			bundle.Status = client.Done
 			bundle.Stopped = h.clock.Now()
 			if e := ioutil.WriteFile(stateFilePath, jsonMarshal(bundle), filePerm); e != nil {
 				logrus.WithError(e).Errorf("Could not update state file %s", id)
@@ -236,7 +229,7 @@ func (h BundleHandler) List(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusInsufficientStorage, fmt.Errorf("could not read work dir: %s", err))
 	}
 
-	bundles := make([]Bundle, 0, len(ids))
+	bundles := make([]client.Bundle, 0, len(ids))
 
 	for _, id := range ids {
 		if !id.IsDir() {
@@ -254,10 +247,10 @@ func (h BundleHandler) List(w http.ResponseWriter, r *http.Request) {
 	write(w, jsonMarshal(bundles))
 }
 
-func (h BundleHandler) getBundleState(id string) (Bundle, error) {
-	bundle := Bundle{
+func (h BundleHandler) getBundleState(id string) (client.Bundle, error) {
+	bundle := client.Bundle{
 		ID:     id,
-		Status: Unknown,
+		Status: client.Unknown,
 	}
 
 	stateFilePath := filepath.Join(h.workDir, id, stateFileName)
@@ -271,13 +264,13 @@ func (h BundleHandler) getBundleState(id string) (Bundle, error) {
 		return bundle, fmt.Errorf("could not unmarshal state file %s: %s", id, err)
 	}
 
-	if bundle.Status == Deleted || bundle.Status == Canceled || bundle.Status == Unknown {
+	if bundle.Status == client.Deleted || bundle.Status == client.Canceled || bundle.Status == client.Unknown {
 		return bundle, nil
 	}
 
 	dataFileStat, err := os.Stat(filepath.Join(h.workDir, id, dataFileName))
 	if err != nil {
-		bundle.Status = Unknown
+		bundle.Status = client.Unknown
 		return bundle, fmt.Errorf("could not stat data file %s: %s", id, err)
 	}
 
@@ -325,7 +318,7 @@ func (h BundleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if bundle.Status == Deleted || bundle.Status == Canceled {
+	if bundle.Status == client.Deleted || bundle.Status == client.Canceled {
 		w.WriteHeader(http.StatusNotModified)
 		write(w, jsonMarshal(bundle))
 		return
@@ -339,7 +332,7 @@ func (h BundleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bundle.Status = Deleted
+	bundle.Status = client.Deleted
 	newRawState := jsonMarshal(bundle)
 	err = ioutil.WriteFile(stateFilePath, newRawState, filePerm)
 	if err != nil {

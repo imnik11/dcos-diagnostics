@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/dcos/dcos-diagnostics/api/rest/client"
+
 	"github.com/dcos/dcos-diagnostics/dcos"
 
 	"github.com/google/uuid"
@@ -23,14 +25,14 @@ import (
 type ClusterBundleHandler struct {
 	workDir    string
 	coord      Coordinator
-	client     Client
+	client     client.Client
 	tools      dcos.Tooler
 	timeout    time.Duration
 	clock      Clock
 	urlBuilder dcos.NodeURLBuilder
 }
 
-func NewClusterBundleHandler(c Coordinator, client Client, tools dcos.Tooler, workDir string, timeout time.Duration,
+func NewClusterBundleHandler(c Coordinator, client client.Client, tools dcos.Tooler, workDir string, timeout time.Duration,
 	urlBuilder dcos.NodeURLBuilder) *ClusterBundleHandler {
 
 	return &ClusterBundleHandler{
@@ -64,10 +66,10 @@ func (c *ClusterBundleHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	stateFilePath := filepath.Join(c.workDir, id, stateFileName)
 
-	bundle := Bundle{
+	bundle := client.Bundle{
 		ID:      id,
 		Started: c.clock.Now(),
-		Status:  Started,
+		Status:  client.Started,
 	}
 
 	bundleStatus := jsonMarshal(bundle)
@@ -127,7 +129,7 @@ func (c *ClusterBundleHandler) Create(w http.ResponseWriter, r *http.Request) {
 	write(w, bundleStatus)
 }
 
-func (c *ClusterBundleHandler) waitAndCollectRemoteBundle(ctx context.Context, bundle *Bundle, numBundles int,
+func (c *ClusterBundleHandler) waitAndCollectRemoteBundle(ctx context.Context, bundle *client.Bundle, numBundles int,
 	dataFile io.WriteCloser, stateFilePath string, statuses <-chan BundleStatus) {
 
 	defer dataFile.Close()
@@ -137,7 +139,7 @@ func (c *ClusterBundleHandler) waitAndCollectRemoteBundle(ctx context.Context, b
 		bundle.Errors = append(bundle.Errors, err.Error())
 	}
 	bundle.Stopped = c.clock.Now()
-	bundle.Status = Done
+	bundle.Status = client.Done
 
 	err = ioutil.WriteFile(stateFilePath, jsonMarshal(bundle), filePerm)
 	if err != nil {
@@ -168,7 +170,7 @@ func (c *ClusterBundleHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	ctx := context.Background()
 
-	bundles := []*Bundle{}
+	bundles := []*client.Bundle{}
 	for _, n := range masters {
 		nodeBundles, err := c.client.List(ctx, n.baseURL)
 		if err != nil {
@@ -200,10 +202,10 @@ func (c *ClusterBundleHandler) Status(w http.ResponseWriter, r *http.Request) {
 		bundle, err := c.client.Status(ctx, n.baseURL, id)
 		if err != nil {
 			switch err.(type) {
-			case *DiagnosticsBundleNotCompletedError:
+			case *client.DiagnosticsBundleNotCompletedError:
 				writeJSONError(w, http.StatusNotFound, err)
 				return
-			case *DiagnosticsBundleUnreadableError:
+			case *client.DiagnosticsBundleUnreadableError:
 				writeJSONError(w, http.StatusInternalServerError, err)
 				return
 			}
@@ -240,10 +242,10 @@ func (c *ClusterBundleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			// some errors tell us the bundle was found on a master but something else was wrong so we end and return an error status
 			// but a NotFound error means it should keep going
 			switch err.(type) {
-			case *DiagnosticsBundleNotCompletedError:
+			case *client.DiagnosticsBundleNotCompletedError:
 				w.WriteHeader(http.StatusNotModified)
 				return
-			case *DiagnosticsBundleUnreadableError:
+			case *client.DiagnosticsBundleUnreadableError:
 				writeJSONError(w, http.StatusInternalServerError, err)
 				return
 			}
@@ -279,13 +281,13 @@ func (c *ClusterBundleHandler) Download(w http.ResponseWriter, r *http.Request) 
 		_, err = c.client.Status(ctx, n.baseURL, id)
 		if err != nil {
 			switch err.(type) {
-			case *DiagnosticsBundleUnreadableError:
+			case *client.DiagnosticsBundleUnreadableError:
 				writeJSONError(w, http.StatusInternalServerError, err)
 				return
-			case *DiagnosticsBundleNotCompletedError:
+			case *client.DiagnosticsBundleNotCompletedError:
 				writeJSONError(w, http.StatusNotFound, err)
 				return
-			case *DiagnosticsBundleNotFoundError:
+			case *client.DiagnosticsBundleNotFoundError:
 				continue
 			}
 		} else {
@@ -295,7 +297,7 @@ func (c *ClusterBundleHandler) Download(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	if !found {
-		writeJSONError(w, http.StatusNotFound, &DiagnosticsBundleNotFoundError{id: id})
+		writeJSONError(w, http.StatusNotFound, &client.DiagnosticsBundleNotFoundError{ID: id})
 		return
 	}
 

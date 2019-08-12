@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"time"
 
+	client2 "github.com/dcos/dcos-diagnostics/api/rest/client"
+
 	"github.com/dcos/dcos-diagnostics/api"
 	"github.com/dcos/dcos-diagnostics/api/rest"
 	diagDcos "github.com/dcos/dcos-diagnostics/dcos"
@@ -100,7 +102,7 @@ func startDiagnosticsDaemon() {
 
 	bundleTimeout := time.Minute * time.Duration(defaultConfig.FlagDiagnosticsJobTimeoutMinutes)
 	bundleHandler := rest.NewBundleHandler(defaultConfig.FlagDiagnosticsBundleDir, collectors, bundleTimeout)
-	diagClient := rest.NewDiagnosticsClient(client)
+	diagClient := client2.NewDiagnosticsClient(client)
 	coord := rest.NewParallelCoordinator(diagClient, time.Minute, defaultConfig.FlagDiagnosticsBundleDir)
 	urlBuilder := diagDcos.NewURLBuilder(defaultConfig.FlagAgentPort, defaultConfig.FlagMasterPort, defaultConfig.FlagForceTLS)
 	clusterBundleHandler := rest.NewClusterBundleHandler(coord, diagClient, DCOSTools, defaultConfig.FlagDiagnosticsBundleDir,

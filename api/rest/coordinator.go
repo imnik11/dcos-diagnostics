@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dcos/dcos-diagnostics/api/rest/client"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -44,7 +46,7 @@ type Coordinator interface {
 // ParallelCoordinator implements Coordinator interface to coordinate bundle
 // creation across a cluster, parallelized across multiple goroutines.
 type ParallelCoordinator struct {
-	client Client
+	client client.Client
 
 	// statusCheckInterval defines how often the status of the local bundles will
 	// be checked
@@ -53,7 +55,7 @@ type ParallelCoordinator struct {
 }
 
 // NewParallelCoordinator creates and returns a new ParallelCoordinator
-func NewParallelCoordinator(client Client, interval time.Duration, workDir string) *ParallelCoordinator {
+func NewParallelCoordinator(client client.Client, interval time.Duration, workDir string) *ParallelCoordinator {
 	return &ParallelCoordinator{
 		client:              client,
 		statusCheckInterval: interval,
@@ -67,8 +69,8 @@ type bundleReport struct {
 }
 
 type nodeBundleReport struct {
-	Status Status `json:"status"`
-	Err    string `json:"error,omitempty"`
+	Status client.Status `json:"status"`
+	Err    string        `json:"error,omitempty"`
 }
 
 // job is a function that will be called by the worker function. The output will be added to results channel
@@ -140,7 +142,7 @@ func (c ParallelCoordinator) CollectBundle(ctx context.Context, bundleID string,
 		// even if the bundle finished with an error, it's now finished so increment finishedBundles
 		finishedBundles++
 		if s.err != nil {
-			report.Nodes[s.node.IP.String()] = nodeBundleReport{Status: Failed, Err: s.err.Error()}
+			report.Nodes[s.node.IP.String()] = nodeBundleReport{Status: client.Failed, Err: s.err.Error()}
 			logrus.WithError(s.err).WithField("IP", s.node.IP).WithField("ID", s.id).Warn("Bundle errored")
 			continue
 		}
@@ -148,13 +150,13 @@ func (c ParallelCoordinator) CollectBundle(ctx context.Context, bundleID string,
 		bundlePath := filepath.Join(c.workDir, nodeBundleFilename(s.node))
 		err := c.client.GetFile(ctx, s.node.baseURL, s.id, bundlePath)
 		if err != nil {
-			report.Nodes[s.node.IP.String()] = nodeBundleReport{Status: Failed, Err: err.Error()}
+			report.Nodes[s.node.IP.String()] = nodeBundleReport{Status: client.Failed, Err: err.Error()}
 			logrus.WithError(err).WithField("IP", s.node.IP).WithField("ID", s.id).Warn("Could not download file")
 			continue
 		}
 
 		logrus.WithError(s.err).WithField("IP", s.node.IP).WithField("ID", s.id).Info("Got status update. Bundle READY.")
-		report.Nodes[s.node.IP.String()] = nodeBundleReport{Status: Done}
+		report.Nodes[s.node.IP.String()] = nodeBundleReport{Status: client.Done}
 		bundlePaths = append(bundlePaths, bundlePath)
 	}
 
@@ -330,7 +332,7 @@ func (c ParallelCoordinator) waitForDone(ctx context.Context, node node, id stri
 		return BundleStatus{id: id, node: node, err: fmt.Errorf("could not check status: %s", err)}
 	}
 	// If bundle is in terminal state (its state won't change)
-	if bundle.Status == Done || bundle.Status == Deleted || bundle.Status == Canceled {
+	if bundle.Status == client.Done || bundle.Status == client.Deleted || bundle.Status == client.Canceled {
 		logrus.WithField("IP", node.IP).Info("Node bundle is finished.")
 		// mark it as done
 		return BundleStatus{id: id, node: node, done: true}

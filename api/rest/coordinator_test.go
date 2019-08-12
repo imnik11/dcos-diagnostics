@@ -12,13 +12,16 @@ import (
 	"testing"
 	"time"
 
+	client2 "github.com/dcos/dcos-diagnostics/api/rest/client"
+	"github.com/dcos/dcos-diagnostics/api/rest/client/mock"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCoordinator_CreatorShouldCreateAbundleAndReturnUpdateChan(t *testing.T) {
 
-	client := new(TestifyMockClient)
+	client := new(mock.TestifyClient)
 	interval := time.Millisecond
 	workDir := os.TempDir()
 
@@ -40,8 +43,8 @@ func TestCoordinator_CreatorShouldCreateAbundleAndReturnUpdateChan(t *testing.T)
 	expected := []BundleStatus{}
 
 	for _, n := range testNodes {
-		client.On("CreateBundle", ctx, n.baseURL, localBundleID).Return(&Bundle{ID: localBundleID, Status: Started}, nil)
-		client.On("Status", ctx, n.baseURL, localBundleID).Return(&Bundle{ID: localBundleID, Status: Done}, nil)
+		client.On("CreateBundle", ctx, n.baseURL, localBundleID).Return(&client2.Bundle{ID: localBundleID, Status: client2.Started}, nil)
+		client.On("Status", ctx, n.baseURL, localBundleID).Return(&client2.Bundle{ID: localBundleID, Status: client2.Done}, nil)
 
 		expected = append(expected,
 			BundleStatus{id: localBundleID, node: n},
@@ -79,20 +82,20 @@ func TestCoordinatorCreateAndCollect(t *testing.T) {
 
 	testNodes = append(testNodes, failingNode, nodeInProgress)
 
-	ctx, cancel := context.WithTimeout(context.TODO(), 100 * time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.TODO(), 100*time.Millisecond)
 	downloaded := make(chan bool)
 
-	client := &MockClient{
-		createBundle: func(ctx context.Context, node string, ID string) (bundle *Bundle, e error) {
-			return &Bundle{ID: localBundleID, Status: Started}, nil
+	client := &mock.Client{
+		MockCreateBundle: func(ctx context.Context, node string, ID string) (bundle *client2.Bundle, e error) {
+			return &client2.Bundle{ID: localBundleID, Status: client2.Started}, nil
 		},
-		status: func(ctx context.Context, node string, ID string) (bundle *Bundle, e error) {
+		MockStatus: func(ctx context.Context, node string, ID string) (bundle *client2.Bundle, e error) {
 			if node == nodeInProgress.baseURL {
-				return  &Bundle{ID: localBundleID, Status: InProgress}, nil
+				return &client2.Bundle{ID: localBundleID, Status: client2.InProgress}, nil
 			}
-			return &Bundle{ID: localBundleID, Status: Done}, nil
+			return &client2.Bundle{ID: localBundleID, Status: client2.Done}, nil
 		},
-		getFile: func(ctx context.Context, node string, ID string, path string) (err error) {
+		MockGetFile: func(ctx context.Context, node string, ID string, path string) (err error) {
 			defer func() { downloaded <- true }()
 			if node == failingNode.baseURL {
 				return fmt.Errorf("some error")
@@ -131,8 +134,8 @@ func TestCoordinatorCreateAndCollect(t *testing.T) {
 		filepath.Join("192.0.2.1_agent", "test.txt"):        "test\n",
 		filepath.Join("192.0.2.2_master", "test.txt"):       "test\n",
 		filepath.Join("192.0.2.3_public_agent", "test.txt"): "test\n",
-		summaryErrorsReportFileName: "error\nerror\nerror\n",
-		reportFileName: `{"id":"bundle-0","nodes":{"192.0.2.1":{"status":"Done"},"192.0.2.2":{"status":"Done"},"192.0.2.3":{"status":"Done"},"192.0.2.4":{"status":"Failed","error":"some error"},"192.0.2.5":{"status":"Failed","error":"bundle creation context finished before bundle creation finished"}}}`,
+		summaryErrorsReportFileName:                         "error\nerror\nerror\n",
+		reportFileName:                                      `{"id":"bundle-0","nodes":{"192.0.2.1":{"status":"Done"},"192.0.2.2":{"status":"Done"},"192.0.2.3":{"status":"Done"},"192.0.2.4":{"status":"Failed","error":"some error"},"192.0.2.5":{"status":"Failed","error":"bundle creation context finished before bundle creation finished"}}}`,
 	}
 
 	files := map[string]string{}
@@ -170,7 +173,7 @@ func TestAppendToZipErrorsWithMalformedZip(t *testing.T) {
 }
 
 func TestHandlingForBundleUpdateInProgress(t *testing.T) {
-	client := new(TestifyMockClient)
+	client := new(mock.TestifyClient)
 	interval := time.Millisecond
 	workDir, err := filepath.Abs("testdata")
 	require.NoError(t, err)
@@ -182,11 +185,11 @@ func TestHandlingForBundleUpdateInProgress(t *testing.T) {
 
 	n := node{IP: net.ParseIP("127.0.0.1"), Role: "master", baseURL: "http://127.0.0.1"}
 
-	client.On("CreateBundle", ctx, n.baseURL, localBundleID).Return(&Bundle{ID: localBundleID, Status: Started}, nil)
+	client.On("CreateBundle", ctx, n.baseURL, localBundleID).Return(&client2.Bundle{ID: localBundleID, Status: client2.Started}, nil)
 
 	// The `Once`s here are necessary for it to find the calls in the expected order
-	client.On("Status", ctx, n.baseURL, localBundleID).Return(&Bundle{ID: localBundleID, Status: InProgress}, nil).Once()
-	client.On("Status", ctx, n.baseURL, localBundleID).Return(&Bundle{ID: localBundleID, Status: Done}, nil).Once()
+	client.On("Status", ctx, n.baseURL, localBundleID).Return(&client2.Bundle{ID: localBundleID, Status: client2.InProgress}, nil).Once()
+	client.On("Status", ctx, n.baseURL, localBundleID).Return(&client2.Bundle{ID: localBundleID, Status: client2.Done}, nil).Once()
 
 	statuses := c.CreateBundle(ctx, localBundleID, []node{n})
 
@@ -220,7 +223,7 @@ func TestHandlingForBundleUpdateInProgress(t *testing.T) {
 }
 
 func TestErrorHandlingFromClientCreateBundle(t *testing.T) {
-	client := new(TestifyMockClient)
+	client := new(mock.TestifyClient)
 	interval := time.Millisecond
 	workDir, err := filepath.Abs("testdata")
 	require.NoError(t, err)
@@ -248,7 +251,7 @@ func TestErrorHandlingFromClientCreateBundle(t *testing.T) {
 }
 
 func TestErrorHandlingFromClientStatus(t *testing.T) {
-	client := new(TestifyMockClient)
+	client := new(mock.TestifyClient)
 	interval := time.Millisecond
 	workDir, err := filepath.Abs("testdata")
 	require.NoError(t, err)
@@ -262,11 +265,11 @@ func TestErrorHandlingFromClientStatus(t *testing.T) {
 
 	expectedErr := errors.New("this stands in for any of the possible errors Status could throw")
 
-	client.On("CreateBundle", ctx, n.baseURL, localBundleID).Return(&Bundle{ID: localBundleID, Status: Started}, nil)
+	client.On("CreateBundle", ctx, n.baseURL, localBundleID).Return(&client2.Bundle{ID: localBundleID, Status: client2.Started}, nil)
 
 	// The `Once`s here are necessary for it to find the calls in the expected order
 	client.On("Status", ctx, n.baseURL, localBundleID).Return(nil, expectedErr).Once()
-	client.On("Status", ctx, n.baseURL, localBundleID).Return(&Bundle{ID: localBundleID, Status: Done}, nil).Once()
+	client.On("Status", ctx, n.baseURL, localBundleID).Return(&client2.Bundle{ID: localBundleID, Status: client2.Done}, nil).Once()
 
 	statuses := c.CreateBundle(ctx, localBundleID, []node{n})
 
@@ -301,7 +304,7 @@ func TestErrorHandlingFromClientStatus(t *testing.T) {
 }
 
 func TestHandlingForCanceledContext(t *testing.T) {
-	client := new(TestifyMockClient)
+	client := new(mock.TestifyClient)
 	workDir, err := filepath.Abs("testdata")
 	require.NoError(t, err)
 
@@ -313,10 +316,10 @@ func TestHandlingForCanceledContext(t *testing.T) {
 
 	n := node{IP: net.ParseIP("127.0.0.1"), Role: "master", baseURL: "http://127.0.0.1"}
 
-	client.On("CreateBundle", ctx, n.baseURL, localBundleID).Return(&Bundle{ID: localBundleID, Status: Started}, nil)
+	client.On("CreateBundle", ctx, n.baseURL, localBundleID).Return(&client2.Bundle{ID: localBundleID, Status: client2.Started}, nil)
 
 	// stay in progress forever until the context is canceled
-	client.On("Status", ctx, n.baseURL, localBundleID).Return(&Bundle{ID: localBundleID, Status: InProgress}, nil)
+	client.On("Status", ctx, n.baseURL, localBundleID).Return(&client2.Bundle{ID: localBundleID, Status: client2.InProgress}, nil)
 
 	statuses := c.CreateBundle(ctx, localBundleID, []node{n})
 

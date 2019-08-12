@@ -1,4 +1,4 @@
-package rest
+package client
 
 import (
 	"bytes"
@@ -8,11 +8,21 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
 
-const bundlesEndpoint = "/system/health/v1/node/diagnostics"
+const BundlesEndpoint = "/system/health/v1/node/diagnostics"
+
+type Bundle struct {
+	ID      string    `json:"id,omitempty"`
+	Size    int64     `json:"size,omitempty"` // length in bytes for regular files; 0 when Canceled or Deleted
+	Status  Status    `json:"status"`
+	Started time.Time `json:"started_at,omitempty"`
+	Stopped time.Time `json:"stopped_at,omitempty"`
+	Errors  []string  `json:"errors,omitempty"`
+}
 
 // Client is an interface that can talk with dcos-diagnostics REST API and manipulate remote bundles
 type Client interface {
@@ -26,7 +36,7 @@ type Client interface {
 	GetFile(ctx context.Context, node string, ID string, path string) (err error)
 	// List will get the list of available bundles on the given node
 	List(ctx context.Context, node string) ([]*Bundle, error)
-	// Delete will delete the bundle with the given id from the given node
+	// Delete will delete the bundle with the given ID from the given node
 	Delete(ctx context.Context, node string, id string) error
 }
 
@@ -150,7 +160,7 @@ func (d DiagnosticsClient) GetFile(ctx context.Context, node string, ID string, 
 }
 
 func (d DiagnosticsClient) List(ctx context.Context, node string) ([]*Bundle, error) {
-	url := fmt.Sprintf("%s%s", node, bundlesEndpoint)
+	url := fmt.Sprintf("%s%s", node, BundlesEndpoint)
 
 	logrus.WithField("node", node).Info("getting list of bundles from node")
 
@@ -166,7 +176,7 @@ func (d DiagnosticsClient) List(ctx context.Context, node string) ([]*Bundle, er
 	defer resp.Body.Close()
 
 	// there are no expected error messages that could come from this so having
-	// a null id should be fine as the only case this should hit is the default
+	// a null ID should be fine as the only case this should hit is the default
 	// unexpected status code case.
 	err = handleErrorCode(resp, url, "")
 	if err != nil {
@@ -204,11 +214,11 @@ func (d DiagnosticsClient) Delete(ctx context.Context, node string, id string) e
 func handleErrorCode(resp *http.Response, url string, bundleID string) error {
 	switch {
 	case resp.StatusCode == http.StatusNotModified:
-		return &DiagnosticsBundleNotCompletedError{id: bundleID}
+		return &DiagnosticsBundleNotCompletedError{ID: bundleID}
 	case resp.StatusCode == http.StatusNotFound:
-		return &DiagnosticsBundleNotFoundError{id: bundleID}
+		return &DiagnosticsBundleNotFoundError{ID: bundleID}
 	case resp.StatusCode == http.StatusInternalServerError:
-		return &DiagnosticsBundleUnreadableError{id: bundleID}
+		return &DiagnosticsBundleUnreadableError{ID: bundleID}
 	case resp.StatusCode != http.StatusOK:
 		body := make([]byte, 100)
 		resp.Body.Read(body)
@@ -218,6 +228,17 @@ func handleErrorCode(resp *http.Response, url string, bundleID string) error {
 }
 
 func remoteURL(node string, ID string) string {
-	url := fmt.Sprintf("%s%s/%s", node, bundlesEndpoint, ID)
+	url := fmt.Sprintf("%s%s/%s", node, BundlesEndpoint, ID)
 	return url
+}
+
+// jsonMarshal is a replacement for json.Marshal when we are 100% sure
+// there won't now be any error on marshaling.
+func jsonMarshal(v interface{}) []byte {
+	rawJSON, err := json.Marshal(v)
+
+	if err != nil {
+		logrus.WithError(err).Fatalf("Could not marshal %v: %s", v, err)
+	}
+	return rawJSON
 }
